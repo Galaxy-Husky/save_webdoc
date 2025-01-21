@@ -1,14 +1,17 @@
+import os
 import time
 
 from selenium import webdriver
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 DRIVER_TYPE = "chrome"
-USER_DATA_DIR = r"C:/Users/Ping/AppData/Local/Google/Chrome/User Data"
+USER_DATA_DIR_MAPPING = {
+    "chrome": r"C:/Users/Ping/AppData/Local/Google/Chrome/User Data",
+    "edge": r"C:/Users/Ping/AppData/Local/Microsoft/Edge/User Data",
+}
 URL = "https://oed41vnioo.feishu.cn/wiki/Nw0bwlTCCiLeL2ksGVmcCSdanBg"
 PASSWORD = "4p4@6814"
 CSS_CLOSE = "#pp_popupContainer > div.ud__portal > div > div:nth-child(4) > div > div > div > div > div.lite-login-dialog__close"
@@ -16,29 +19,48 @@ CSS_PWD_INPUT = "#mainContainer > div.app-main-container.flex.layout-row.explore
 CSS_LOGIN_BTN = "#mainContainer > div.app-main-container.flex.layout-row.explorer-v3.is-suite > div.app-main.main__content.layout-column > div.suite-body.flex.layout-column > div > div.sc-domHXz.TEzci > div > button"
 CSS_SIDEBAR = "#mainContainer > div.app-main-container.flex.layout-row.explorer-v3.is-suite > div.sc-czvXZf.eCdaTP.wiki-sidebar-wrap.wiki-sidebar-responsive-wrap.disabled-contextmenu > div:nth-child(1) > div > div.sc-eEvRUm.iAHRHS > div > div > div.wiki-tree-wrap > div"
 SEC_BASE_SELECTOR = "#mainContainer > div.app-main-container.flex.layout-row.explorer-v3.is-suite > div.sc-bQFtmx.YfgBr.wiki-sidebar-wrap.wiki-sidebar-responsive-wrap.disabled-contextmenu > div:nth-child(1) > div > div.sc-hgkBRQ.GFLjf > div > div > div.wiki-tree-wrap > div > div > ul > li:nth-child"
+DOWNLOAD_DIR = r"E:/ChromeDownload"
 
 
 def verify_browser_options(driver_type):
+    USER_DATA_DIR = USER_DATA_DIR_MAPPING[driver_type]
     if driver_type == "chrome":
         options = webdriver.ChromeOptions()
         print("使用 Chrome 浏览器")
-        options.add_experimental_option("detach", True)
-        options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
+        if not os.access(DOWNLOAD_DIR, os.W_OK):
+            raise Exception(f"没有写权限: {DOWNLOAD_DIR}")
+        prefs = {
+            "download.default_directory": DOWNLOAD_DIR,  # 设置默认下载路径
+        }
+        options.add_experimental_option("prefs", prefs)
+        # options.add_argument("--no-sandbox")
+        # options.add_argument("--disable-dev-shm-usage")
+        # options.add_argument("--enable-logging")  # 启用日志
+        # options.add_argument("--v=1")  # 设置日志级别
     elif driver_type == "firefox":
         options = webdriver.FirefoxOptions()
         print("使用 Firefox 浏览器")
+    elif driver_type == "edge":
+        options = webdriver.EdgeOptions()
+        print("使用 edge 浏览器")
     else:
         raise ValueError("不支持的浏览器类型")
+    if driver_type in ("chrome", "edge"):
+        options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
+        options.add_experimental_option("detach", True)
     return options
 
 
 def init_driver(driver_type):
     options = verify_browser_options(driver_type)
-    driver = (
-        webdriver.Chrome(options=options)
-        if driver_type == "chrome"
-        else webdriver.Firefox(options=options)
-    )
+    if driver_type == "chrome":
+        driver = webdriver.Chrome(options=options)
+    elif driver_type == "firefox":
+        driver = webdriver.Firefox(options=options)
+    elif driver_type == "edge":
+        driver = webdriver.Edge(options=options)
+    else:
+        raise ValueError("不支持的浏览器类型")
     driver.maximize_window()
     return driver
 
@@ -130,21 +152,7 @@ def main():
     if DRIVER_TYPE == "firefox":
         adjust_firefox_zoom(driver)
 
-    # get_section_titles(driver, wait)
-    body = driver.find_element(By.TAG_NAME, "body")
-    body.click()
-    actions = ActionChains(driver)
-    actions.key_down(Keys.ALT).key_down(Keys.SHIFT).send_keys("p").key_up(
-        Keys.SHIFT
-    ).key_up(Keys.ALT)
-    actions.perform()
-    print("按下 alt + shift + p")
-
-    time.sleep(3)
-    actions.key_down(Keys.CONTROL).send_keys("a").key_up(Keys.CONTROL)
-    actions.perform()
-    print("按下 ctrl + a")
-
+    get_section_titles(driver, wait)
     driver.quit()
 
 
