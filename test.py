@@ -73,21 +73,28 @@ check_permissions(DOWNLOAD_DIR)
 # print(driver.current_window_handle)
 time.sleep(1)
 
-# 按下 Ctrl+S 打开保存对话框
-pyautogui.keyDown("ctrl")
-pyautogui.press("s")
-pyautogui.keyUp("ctrl")
-print("按下 ctrl + s")
+def save_file():
+    """
+    使用快捷键保存文件的函数
+    执行 Ctrl+S 然后按 Enter 确认保存
+    """
+    # 按下 Ctrl+S 打开保存对话框
+    pyautogui.keyDown("ctrl")
+    pyautogui.press("s")
+    pyautogui.keyUp("ctrl")
+    print("按下 ctrl + s")
 
-# 等待保存对话框出现
-time.sleep(2)
+    # 等待保存对话框出现
+    time.sleep(2)
 
-# 直接按回车键确认保存
-pyautogui.press("enter")
-print("按下 enter 确认保存")
+    # 直接按回车键确认保存
+    pyautogui.press("enter")
+    print("按下 enter 确认保存")
 
-# 等待保存完成
-time.sleep(2)
+    # 等待保存完成
+    time.sleep(2)
+
+save_file()
 
 # driver.switch_to.window(window_handles[0])
 
