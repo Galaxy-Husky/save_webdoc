@@ -1,30 +1,30 @@
 import os
 import time
+
 import pyautogui
+from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.action_chains import ActionChains
+
+DOTENV_PATH = ".env"
+assert load_dotenv(DOTENV_PATH)
 
 DRIVER_TYPE = "edge"
 USER_DATA_DIR_MAPPING = {
-    "chrome": r"C:/Users/dxt75/AppData/Local/Google/Chrome/User Data",
-    "edge": r"C:/Users/dxt75/AppData/Local/Microsoft/Edge/User Data",
+    "chrome": os.getenv("chrome_user_data_dir"),
+    "edge": os.getenv("edge_user_data_dir"),
 }
-DOWNLOAD_DIR = r"D:/ChromeDownload"
-URL = "https://oed41vnioo.feishu.cn/wiki/Nw0bwlTCCiLeL2ksGVmcCSdanBg"
-PASSWORD = "4p4@6814"
-CSS_CLOSE = "#pp_popupContainer > div.ud__portal > div > div:nth-child(4) > div > div > div > div > div.lite-login-dialog__close"
-CSS_PWD_INPUT = "#mainContainer > div.app-main-container.flex.layout-row.explorer-v3.is-suite > div.app-main.main__content.layout-column > div.suite-body.flex.layout-column > div > div.sc-domHXz.TEzci > div > div.layout-row.password-required-container > div > input"
-CSS_LOGIN_BTN = "#mainContainer > div.app-main-container.flex.layout-row.explorer-v3.is-suite > div.app-main.main__content.layout-column > div.suite-body.flex.layout-column > div > div.sc-domHXz.TEzci > div > button"
+USER_DATA_DIR = USER_DATA_DIR_MAPPING[DRIVER_TYPE]
+DOWNLOAD_DIR = os.getenv("download_dir")
+URL = os.getenv("url")
+PASSWORD = os.getenv("password")
 CSS_SIDEBAR = "#mainContainer > div.app-main-container.flex.layout-row.explorer-v3.is-suite > div.sc-czvXZf.eCdaTP.wiki-sidebar-wrap.wiki-sidebar-responsive-wrap.disabled-contextmenu > div:nth-child(1) > div > div.sc-eEvRUm.iAHRHS > div > div > div.wiki-tree-wrap > div"
 SEC_BASE_SELECTOR = "#mainContainer > div.app-main-container.flex.layout-row.explorer-v3.is-suite > div.sc-bQFtmx.YfgBr.wiki-sidebar-wrap.wiki-sidebar-responsive-wrap.disabled-contextmenu > div:nth-child(1) > div > div.sc-hgkBRQ.GFLjf > div > div > div.wiki-tree-wrap > div > div > ul > li:nth-child"
 
 
 def verify_browser_options(driver_type):
-    USER_DATA_DIR = USER_DATA_DIR_MAPPING[driver_type]
     if driver_type == "chrome":
         options = webdriver.ChromeOptions()
         print("使用 Chrome 浏览器")
@@ -66,71 +66,77 @@ def init_driver(driver_type):
     return driver
 
 
-def close_popup(driver, wait):
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, CSS_CLOSE)))
-    wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_CLOSE)))
-    btn_close = driver.find_element(By.CSS_SELECTOR, CSS_CLOSE)
+def perform_with_retries_decorator(max_attempts=30, wait_time=1, raise_error=False):
+    def perform_with_retries(func):
+        def wrapper(*args):
+            attempt = 0
+            while attempt < max_attempts:
+                try:
+                    func(*args)
+                    return
+                except Exception as e:
+                    print(f"尝试 {attempt + 1}/{max_attempts} 失败: {str(e)}")
+                    attempt += 1
+                    time.sleep(wait_time)
+            msg = f"在 {max_attempts} 次尝试后操作仍未成功"
+            if raise_error:
+                raise TimeoutError(msg)
+            else:
+                print(msg)
+
+        return wrapper
+
+    return perform_with_retries
+
+
+@perform_with_retries_decorator(max_attempts=2)
+def wait_login(wait, pwd_element):
+    wait.until(EC.presence_of_element_located(pwd_element))
+    print("等待登录元素出现")
+
+
+@perform_with_retries_decorator(max_attempts=2)
+def close_popup(driver, wait, close_element):
+    wait.until(EC.element_to_be_clickable(close_element))
+    btn_close = driver.find_element(*close_element)
     btn_close.click()
     print("关闭弹窗")
-    time.sleep(1)
+    time.sleep(0.1)
 
 
-def input_password(driver, wait):
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, CSS_PWD_INPUT)))
-    wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_PWD_INPUT)))
-    input_pwd = driver.find_element(By.CSS_SELECTOR, CSS_PWD_INPUT)
+@perform_with_retries_decorator(max_attempts=3)
+def input_password(driver, wait, pwd_element, login_element):
+    wait.until(EC.element_to_be_clickable(pwd_element))
+    input_pwd = driver.find_element(*pwd_element)
     input_pwd.send_keys(PASSWORD)
+    print("输入密码")
+    time.sleep(0.1)
 
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LOGIN_BTN)))
-    wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_LOGIN_BTN)))
-    btn_login = driver.find_element(By.CSS_SELECTOR, CSS_LOGIN_BTN)
+    wait.until(EC.element_to_be_clickable(login_element))
+    btn_login = driver.find_element(*login_element)
     btn_login.click()
+    print("点击登录")
+    time.sleep(0.1)
 
 
 def handle_login(driver):
     short_wait = WebDriverWait(driver, 3)
-    try:
-        # 检查是否需要登录
-        short_wait.until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, CSS_PWD_INPUT))
-        )
-        print("需要登录")
-
-        # 关闭弹窗
-        close_popup(driver, short_wait)
-
-        # 输入密码并登录
-        input_password(driver, short_wait)
-    except Exception:
-        print("已经登录，跳过登录步骤")
-    
-    try:
-        close_popup(driver, short_wait)
-    except Exception:
-        print("没有新的弹窗")
+    pwd_element = (By.CLASS_NAME, "password-input")
+    close_element = (By.CLASS_NAME, "lite-login-dialog__close")
+    login_element = (By.CLASS_NAME, "password-required-button")
+    wait_login(short_wait, pwd_element)
+    close_popup(driver, short_wait, close_element)
+    input_password(driver, short_wait, pwd_element, login_element)
+    close_popup(driver, short_wait, close_element)
 
 
-def adjust_firefox_zoom(driver):
-    short_wait = WebDriverWait(driver, 2)
-    max_attempts = 7
-    attempt = 0
-    while attempt < max_attempts:
-        try:
-            sidebar_element = short_wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, CSS_SIDEBAR))
-            )
-            if sidebar_element.is_displayed():
-                print("侧边栏元素已出现")
-                break
-        except Exception:
-            driver.set_context("chrome")
-            win = driver.find_element(By.TAG_NAME, "html")
-            win.send_keys(Keys.CONTROL + Keys.SUBTRACT)
-            print(f"缩小页面，尝试次数: {attempt + 1}")
-            attempt += 1
-    driver.set_context("content")
-    
-    
+def click_expand_arrow(element):
+    class_name = element.get_attribute("class")
+    if "close" in class_name:
+        element.click()
+        time.sleep(0.5)
+
+
 def switch_page(driver, keyword):
     window_handles = driver.window_handles
     # print(f"共有页面：{len(window_handles)}")
@@ -142,20 +148,18 @@ def switch_page(driver, keyword):
             driver.switch_to.window(handle)
             print("切换窗口")
             break
-        
+
 
 def get_handles_info(driver):
     original_handles = driver.window_handles
     num_handles = len(original_handles)
     return num_handles
-    
-    
+
+
 def save_page(driver):
     # 等待新窗口出现
     num_handles = get_handles_info(driver)
     print(num_handles)
-    
-    long_wait = WebDriverWait(driver, 10)
     # 按下 Alt + Shift + P 调用GoFullPage
     pyautogui.keyDown("alt")
     pyautogui.keyDown("shift")
@@ -164,10 +168,8 @@ def save_page(driver):
     pyautogui.keyUp("alt")
     print("按下 alt + shift + p")
     time.sleep(1)
-    
-    max_attempts = 30  # 最大尝试次数
-    attempt = 0
-    while attempt < max_attempts:
+
+    def switch_to_capture_window():
         for handle in driver.window_handles:
             driver.switch_to.window(handle)
             if "capture" in driver.current_url:
@@ -189,21 +191,22 @@ def save_page(driver):
                 print("关闭保存页面")
                 switch_page(driver, "feishu")
                 return
-        attempt += 1
-        time.sleep(1)  # 短暂等待后重试
-        if attempt == max_attempts:
-            raise TimeoutError("未能找到截图窗口")
+
+    # perform_with_retries(switch_to_capture_window)
+
 
 def operate_sections(driver):
-    wait = WebDriverWait(driver, 5)
-    drag = driver.find_element(By.CLASS_NAME, "wiki-flexible-line-v2")
-    actions = ActionChains(driver)
-    
-    i = 0
+    # wait = WebDriverWait(driver, 5)
+    # drag = driver.find_element(By.CLASS_NAME, "wiki-flexible-line-v2")
+    # actions = ActionChains(driver)
+
     last_num = 0
     while True:
         try:
-            elements = driver.find_elements(By.CSS_SELECTOR, 'span.wiki-tree-node-expand-arrow[data-selector="wiki-tree-node-switcher"]')
+            elements = driver.find_elements(
+                By.CSS_SELECTOR,
+                'span.wiki-tree-node-expand-arrow[data-selector="wiki-tree-node-switcher"]',
+            )
             cur_num = len(elements)
             print(cur_num)
             if cur_num > 20:
@@ -213,28 +216,26 @@ def operate_sections(driver):
                 break
             last_num = cur_num
             for element in elements:
-                class_name = element.get_attribute('class')
-                if 'close' in class_name:
-                    element.click()
-                    i += 1
-                    time.sleep(1)
-                    break
+                click_expand_arrow(element)
+                break
         except Exception:
             print("error")
             break
-        
-    elements = driver.find_elements(By.CSS_SELECTOR, ".tree-title-content-title.ellipsis")
-    print(len(elements))
-    for element in elements:
-        print(element.text)
-        element.click()
-        time.sleep(2)
-        try:
-            save_page(driver)
-        except Exception as e:
-            print(f"保存页面时发生错误: {str(e)}")
-            continue
-        
+
+    elements = driver.find_elements(
+        By.CSS_SELECTOR, ".tree-title-content-title.ellipsis"
+    )
+    print(f"共有标题：{len(elements)}")
+    # for element in elements:
+    #     print(element.text)
+    #     element.click()
+    #     time.sleep(1)
+    #     try:
+    #         save_page(driver)
+    #     except Exception as e:
+    #         print(f"保存页面时发生错误: {str(e)}")
+    #         continue
+
     # actions.drag_and_drop_by_offset(drag, 0, 15).perform()
 
 
@@ -244,9 +245,6 @@ def main():
     print("打开网页")
 
     handle_login(driver)
-
-    if DRIVER_TYPE == "firefox":
-        adjust_firefox_zoom(driver)
 
     # save_page(driver)
     operate_sections(driver)

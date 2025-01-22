@@ -73,6 +73,7 @@ check_permissions(DOWNLOAD_DIR)
 # print(driver.current_window_handle)
 time.sleep(1)
 
+
 def save_file():
     """
     使用快捷键保存文件的函数
@@ -93,6 +94,7 @@ def save_file():
 
     # 等待保存完成
     time.sleep(2)
+
 
 save_file()
 
